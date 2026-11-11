@@ -40,8 +40,7 @@ func (s *DocumentService) GeneratePDF(req model.RenderPDFRequest) ([]byte, error
 	pdf.Ln(6)
 
 	// 4. Parse & Render Markdown Lines
-	lines := strings.Split(req.Markdown, "\n")
-	for _, rawLine := range lines {
+	for rawLine := range strings.SplitSeq(req.Markdown, "\n") {
 		line := strings.TrimRight(rawLine, "\r")
 
 		// Empty line -> vertical space

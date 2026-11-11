@@ -5,23 +5,39 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/yashG0/papercut/internal/handler"
+	"github.com/yashG0/papercut/internal/middleware"
+	"github.com/yashG0/papercut/internal/model"
+	"github.com/yashG0/papercut/internal/service"
 )
 
 func main() {
-	// init the default Gin engine with Logger and shutdown middleware
+	// 1. Initialize Gin engine with default Logger and Recovery
 	r := gin.Default()
 
-	// this will create a health route in default Router at /healthz endpoint
-	r.GET("/healthz", func(ctx *gin.Context) {
-		ctx.JSON(http.StatusOK, gin.H{
-			"status": "OK",
+	// 2. Attach our memory protection middleware (limit request payloads to 10MB)
+	r.Use(middleware.MaxBodySize(10 << 20))
+
+	// 3. Initialize layers (Dependency Injection)
+	docService := service.NewDocumentService()
+	docHandler := handler.NewDocumentHandler(docService)
+
+	// 4. Liveness / Readiness health probe
+	r.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, model.HealthResponse{
+			Service: "papercut",
+			Status:  "healthy",
 		})
 	})
 
-	// we will listen our server at 8080 Port
-	log.Println("PaperCut is running on :8080...")
-	err := r.Run(":8080")
-	if err != nil {
-		log.Fatalf("Failed to run server: %v", err)
+	// 5. Versioned API routes
+	v1 := r.Group("/api/v1")
+	{
+		v1.POST("/render/pdf", docHandler.RenderPDF)
+	}
+
+	log.Println("PaperCut microservice listening on :8080...")
+	if err := r.Run(":8080"); err != nil {
+		log.Fatalf("Server failed to start: %v", err)
 	}
 }
