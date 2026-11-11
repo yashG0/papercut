@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 680" width="100%" height="100%">
+  <defs>
+    <!-- Filter for subtle hand-drawn/rough sketch feel -->
+    <filter id="rough-edge" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" result="noise" />
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+
+    <!-- Arrow Markers -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 1 2 L 7 5 L 1 8" fill="none" stroke="#2b2d42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </marker>
+    <marker id="arrow-return" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 1 2 L 7 5 L 1 8" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </marker>
+  </defs>
+
+  <style>
+    .title { font-family: 'Comic Sans MS', 'Chalkboard SE', 'Caveat', 'Segoe UI', cursive, sans-serif; font-weight: 700; font-size: 26px; fill: #1a202c; }
+    .subtitle { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; fill: #718096; font-weight: 500; }
+    .box-header { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 15px; font-weight: 700; fill: #2d3748; letter-spacing: 0.3px; }
+    .card-title { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px; font-weight: 600; fill: #1a202c; }
+    .card-detail { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 11px; font-weight: 400; fill: #4a5568; }
+    .arrow-text { font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace; font-size: 11px; fill: #4a5568; font-weight: 600; }
+    .wire { fill: none; stroke: #2d3748; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .wire-return { fill: none; stroke: #718096; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 5,4; }
+  </style>
+
+  <!-- Clean Background -->
+  <rect width="1000" height="680" fill="#fdfdfd" />
+
+  <!-- Top Title Branding -->
+  <g transform="translate(40, 45)">
+    <text x="0" y="0" class="title">PaperCut</text>
+    <text x="112" y="-2" font-size="20">📄✂️</text>
+    <text x="0" y="22" class="subtitle">Go Microservice · Zero-Disk PDF Engine</text>
+  </g>
+
+  <!-- ==================== 1. CLIENT LAYER ==================== -->
+  <g id="client-node" transform="translate(380, 25)" filter="url(#rough-edge)">
+    <rect x="0" y="0" width="240" height="52" rx="14" fill="#ffffff" stroke="#2b2d42" stroke-width="2.2" stroke-dasharray="0.5 0.5" />
+    <text x="120" y="32" text-anchor="middle" font-family="&#39;Segoe UI&#39;, sans-serif" font-weight="700" font-size="14" fill="#1a202c">Client / API Consumer</text>
+    <circle cx="28" cy="26" r="7" fill="none" stroke="#2b2d42" stroke-width="1.8" />
+    <path d="M 23 31 C 23 27 33 27 33 31" fill="none" stroke="#2b2d42" stroke-width="1.8" />
+  </g>
+
+  <!-- Arrow: Client -> Gin -->
+  <path d="M 500 77 L 500 120" class="wire" marker-end="url(#arrow)" />
+  <rect x="508" y="88" width="168" height="20" rx="4" fill="#edf2f7" opacity="0.9" />
+  <text x="514" y="102" class="arrow-text">POST /api/v1/render/pdf</text>
+
+  <!-- ==================== 2. GIN INGRESS & MIDDLEWARE ==================== -->
+  <g id="gin-layer" transform="translate(140, 125)">
+    <!-- Main Container -->
+    <rect x="0" y="0" width="720" height="135" rx="18" fill="#eef6fc" stroke="#3182ce" stroke-width="2.2" filter="url(#rough-edge)" />
+    <text x="360" y="26" text-anchor="middle" class="box-header">Gin Ingress & Safety Guard</text>
+
+    <!-- Sub-card 1: Logger & Recovery -->
+    <g transform="translate(25, 42)" filter="url(#rough-edge)">
+      <rect x="0" y="0" width="200" height="74" rx="10" fill="#ffffff" stroke="#3182ce" stroke-width="1.6" />
+      <text x="100" y="32" text-anchor="middle" class="card-title">gin.Logger & Recovery</text>
+      <text x="100" y="52" text-anchor="middle" class="card-detail">Panic protection & traces</text>
+    </g>
+
+    <!-- Sub-card 2: MaxBodySize -->
+    <g transform="translate(250, 42)" filter="url(#rough-edge)">
+      <rect x="0" y="0" width="220" height="74" rx="10" fill="#ffffff" stroke="#e53e3e" stroke-width="1.6" />
+      <text x="110" y="32" text-anchor="middle" class="card-title" fill="#c53030">middleware.MaxBodySize</text>
+      <text x="110" y="52" text-anchor="middle" class="card-detail">http.MaxBytesReader (10MB)</text>
+    </g>
+
+    <!-- Sub-card 3: ShouldBindJSON -->
+    <g transform="translate(495, 42)" filter="url(#rough-edge)">
+      <rect x="0" y="0" width="200" height="74" rx="10" fill="#ffffff" stroke="#3182ce" stroke-width="1.6" />
+      <text x="100" y="32" text-anchor="middle" class="card-title">c.ShouldBindJSON</text>
+      <text x="100" y="52" text-anchor="middle" class="card-detail">Tag validation (min, oneof)</text>
+    </g>
+  </g>
+
+  <!-- Arrow: Gin -> Service -->
+  <path d="M 500 260 L 500 305" class="wire" marker-end="url(#arrow)" />
+
+  <!-- ==================== 3. DOCUMENT SERVICE (ENGINE) ==================== -->
+  <g id="service-layer" transform="translate(140, 310)">
+    <!-- Main Container -->
+    <rect x="0" y="0" width="720" height="145" rx="18" fill="#faf5ff" stroke="#805ad5" stroke-width="2.2" filter="url(#rough-edge)" />
+    <text x="360" y="26" text-anchor="middle" class="box-header">Document Service Layer (Rendering Engine)</text>
+
+    <!-- Sub-card 1: Theme Engine -->
+    <g transform="translate(25, 44)" filter="url(#rough-edge)">
+      <rect x="0" y="0" width="195" height="82" rx="10" fill="#ffffff" stroke="#805ad5" stroke-width="1.6" />
+      <text x="97" y="32" text-anchor="middle" class="card-title">Theme Engine</text>
+      <text x="97" y="52" text-anchor="middle" class="card-detail">Palettes & typography</text>
+      <text x="97" y="68" text-anchor="middle" font-family="&#39;JetBrains Mono&#39;, monospace" font-size="10" fill="#6b46c1">default · modern · invoice</text>
+    </g>
+
+    <!-- Sub-card 2: SplitSeq Iterator -->
+    <g transform="translate(240, 44)" filter="url(#rough-edge)">
+      <rect x="0" y="0" width="240" height="82" rx="10" fill="#ffffff" stroke="#805ad5" stroke-width="1.6" />
+      <text x="120" y="32" text-anchor="middle" class="card-title">strings.SplitSeq</text>
+      <text x="120" y="52" text-anchor="middle" class="card-detail">Go 1.24 line iterator</text>
+      <text x="120" y="68" text-anchor="middle" font-size="10" font-weight="600" fill="#2f855a">⚡ Zero-allocation tokenizing</text>
+    </g>
+
+    <!-- Sub-card 3: gofpdf In-Memory -->
+    <g transform="translate(500, 44)" filter="url(#rough-edge)">
+      <rect x="0" y="0" width="195" height="82" rx="10" fill="#ffffff" stroke="#805ad5" stroke-width="1.6" />
+      <text x="97" y="32" text-anchor="middle" class="card-title">gofpdf Pipeline</text>
+      <text x="97" y="52" text-anchor="middle" class="card-detail">In-memory vector canvas</text>
+      <text x="97" y="68" text-anchor="middle" class="card-detail">MultiCell word wrap</text>
+    </g>
+  </g>
+
+  <!-- Arrow: Service -> Stream Output -->
+  <path d="M 500 455 L 500 500" class="wire" marker-end="url(#arrow)" />
+
+  <!-- ==================== 4. IN-MEMORY STREAM (OUTPUT) ==================== -->
+  <g id="output-layer" transform="translate(140, 505)">
+    <!-- Main Container -->
+    <rect x="0" y="0" width="720" height="120" rx="18" fill="#f0fff4" stroke="#38a169" stroke-width="2.2" filter="url(#rough-edge)" />
+    <text x="360" y="26" text-anchor="middle" class="box-header">In-Memory Stream (Zero-Disk I/O)</text>
+
+    <!-- Sub-card 1: bytes.Buffer -->
+    <g transform="translate(45, 42)" filter="url(#rough-edge)">
+      <rect x="0" y="0" width="290" height="60" rx="10" fill="#ffffff" stroke="#38a169" stroke-width="1.6" />
+      <text x="145" y="28" text-anchor="middle" class="card-title">bytes.Buffer Output</text>
+      <text x="145" y="46" text-anchor="middle" class="card-detail">RAM stream · 0 disk writes</text>
+    </g>
+
+    <!-- Sub-card 2: Binary PDF Stream -->
+    <g transform="translate(385, 42)" filter="url(#rough-edge)">
+      <rect x="0" y="0" width="290" height="60" rx="10" fill="#ffffff" stroke="#38a169" stroke-width="1.6" />
+      <text x="145" y="28" text-anchor="middle" class="card-title">Binary PDF Stream (200 OK)</text>
+      <text x="145" y="46" text-anchor="middle" font-family="&#39;JetBrains Mono&#39;, monospace" font-size="10" fill="#276749">application/pdf (~1.5 KiB)</text>
+    </g>
+  </g>
+
+  <!-- ==================== 5. RETURN PATH TO CLIENT ==================== -->
+  <!-- Long loop back arrow on right side -->
+  <path d="M 860 565 L 895 565 L 895 50 L 625 50" class="wire-return" marker-end="url(#arrow-return)" />
+  <rect x="830" y="270" width="130" height="34" rx="6" fill="#ffffff" stroke="#cbd5e0" stroke-width="1.2" />
+  <text x="895" y="285" text-anchor="middle" font-family="&#39;Segoe UI&#39;, sans-serif" font-size="10" font-weight="600" fill="#2d3748">Attachment Stream</text>
+  <text x="895" y="297" text-anchor="middle" font-family="&#39;Segoe UI&#39;, sans-serif" font-size="9" fill="#718096">< 1ms Latency</text>
+
+</svg>

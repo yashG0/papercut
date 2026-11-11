@@ -21,38 +21,22 @@ An ultra-fast, headless document-rendering microservice written in Go. **PaperCu
 
 ## 🏛️ System Architecture
 
-```
-[ Client / API Consumer ]
-            │  POST /api/v1/render/pdf
-            ▼
-┌────────────────────────────────────────────────────────┐
-│  Gin Ingress / Router                                  │
-│  ├── gin.Logger() & gin.Recovery()                     │
-│  ├── middleware.MaxBodySize(10MB)                      │
-│  └── c.ShouldBindJSON (Strict struct validation)       │
-└───────────────────────────┬────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│  internal/service (Renderer Engine)                    │
-│  ├── Theme Selector: ThemeConfig & RGB palettes        │
-│  ├── strings.SplitSeq: Zero-allocation line iteration  │
-│  └── gofpdf: Direct in-memory canvas rendering         │
-└───────────────────────────┬────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│  In-Memory Binary Stream                               │
-│  ├── Content-Type: application/pdf                     │
-│  └── Content-Disposition: attachment; filename="..."   │
-└────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="architecture.svg" alt="PaperCut Architecture Diagram" width="100%" />
+</p>
+
+### Pipeline Flow
+
+1. **Ingress & Memory Boundary:** Gin processes the incoming HTTP request through `middleware.MaxBodySize(10MB)`, wrapping `r.Body` with `http.MaxBytesReader` to block abusive payload sizes before JSON unmarshaling.
+2. **Contract Validation:** `c.ShouldBindJSON` enforces presence, length limits, and supported presets (`oneof=default modern invoice`) via Go struct tags.
+3. **Stream Iteration & Rendering:** The Document Service resolves theme palettes and ranges over lines using `strings.SplitSeq(markdown, "\n")`, formatting headers, bullet lists, and paragraphs directly onto an in-memory `gofpdf` canvas.
+4. **Binary PDF Streaming:** The completed document is written to a `bytes.Buffer` and streamed straight back to the client (`Content-Type: application/pdf`) without touching the filesystem.
 
 ---
 
 ## 📁 Project Structure
 
-Organized according to the standard Go project layout:
+Organized according to standard Go project conventions:
 
 ```text
 papercut/
@@ -71,6 +55,7 @@ papercut/
 │   └── service/
 │       ├── renderer.go          # Core Markdown-to-PDF rendering engine
 │       └── theme.go             # Typography, margins, and color definitions
+├── architecture.svg             # Clean whiteboard architecture diagram
 ├── Dockerfile                   # Multi-stage minimal runtime build
 ├── .dockerignore                # Build context exclusion rules
 ├── Makefile                     # Build, run, test, and tidy automations
@@ -91,12 +76,14 @@ papercut/
 ### Local Development
 
 1. **Clone the repository:**
+
    ```bash
    git clone https://github.com/yashG0/papercut.git
    cd papercut
    ```
 
 2. **Run tests:**
+
    ```bash
    make test
    # Alternative: go test -v -race ./...
@@ -140,6 +127,7 @@ GET /healthz
 ```
 
 **Response (`200 OK`):**
+
 ```json
 {
   "service": "papercut",
@@ -160,12 +148,12 @@ Content-Type: application/json
 
 #### Request Schema:
 
-| Field | Type | Required | Default | Allowed Values | Description |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `title` | `string` | **Yes** | — | 1–100 characters | Document heading and file name |
-| `markdown` | `string` | **Yes** | — | Non-empty string | Raw Markdown text to render |
-| `theme` | `string` | No | `"default"` | `default`, `modern`, `invoice` | Visual style and color preset |
-| `page_size` | `string` | No | `"A4"` | `A4`, `Letter` | Page dimension format |
+| Field       | Type     | Required | Default     | Allowed Values                 | Description                    |
+| :---------- | :------- | :------- | :---------- | :----------------------------- | :----------------------------- |
+| `title`     | `string` | **Yes**  | —           | 1–100 characters               | Document heading and file name |
+| `markdown`  | `string` | **Yes**  | —           | Non-empty string               | Raw Markdown text to render    |
+| `theme`     | `string` | No       | `"default"` | `default`, `modern`, `invoice` | Visual style and color preset  |
+| `page_size` | `string` | No       | `"A4"`      | `A4`, `Letter`                 | Page dimension format          |
 
 #### Example Request:
 
@@ -182,6 +170,7 @@ curl -X POST http://localhost:8080/api/v1/render/pdf \
 ```
 
 **Response Headers:**
+
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/pdf
@@ -208,6 +197,8 @@ go test -v -race ./...
 === RUN   TestMaxBodySize_RejectsOversizedPayload
 --- PASS: TestMaxBodySize_RejectsOversizedPayload (0.00s)
 PASS
+ok      github.com/yashG0/papercut/internal/handler     0.012s
+ok      github.com/yashG0/papercut/internal/middleware  0.004s
 ```
 
 ---
