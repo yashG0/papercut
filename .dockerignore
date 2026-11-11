@@ -1,0 +1,10 @@
+.git
+.gitignore
+bin/
+*.pdf
+*.test
+*.out
+.vscode/
+.idea/
+README.md
+Makefile
