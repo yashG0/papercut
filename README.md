@@ -4,14 +4,14 @@
 [![Framework](https://img.shields.io/badge/Framework-Gin-008ECF?style=flat&logo=gin)](https://gin-gonic.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-An ultra-fast, headless document-rendering microservice written in Go. **PaperCut** converts raw Markdown documents into production-ready PDFs and streams them back in real time with **zero disk writes** and **sub-millisecond latency**.
+An ultra-fast, headless document-rendering microservice written in Go. **PaperCut** converts raw Markdown documents into production-ready PDFs and streams them back in real time with **zero disk writes** and predictable in-memory execution.
 
 ---
 
 ## ⚡ Key Highlights
 
 - **Zero-Disk I/O Pipeline:** All canvas construction, formatting, and PDF encoding occur directly inside Go memory buffers (`bytes.Buffer`). No temporary file cleanups, lock contentions, or disk thrashing under heavy traffic.
-- **Sub-Millisecond Response Time:** Complete JSON parsing, input validation, PDF compilation, and binary delivery finish in under 1ms for standard payloads.
+- **Reproducible Performance:** ~0.17 ms per document layout and PDF compilation on standard payloads, benchmarked with Go's native testing framework.
 - **Go 1.24 Iterator Engine:** Uses `strings.SplitSeq` stream-based line iteration to eliminate full-slice heap allocations when parsing markdown blocks.
 - **Memory Safety Middleware:** Native `http.MaxBytesReader` guard limits incoming payload streams to 10MB to prevent memory exhaustion and denial-of-service attempts.
 - **Dynamic Theming:** Built-in palette and typography engine supporting `default`, `modern`, and `invoice` layouts with custom accents, margins, and divider rules.
@@ -27,10 +27,40 @@ An ultra-fast, headless document-rendering microservice written in Go. **PaperCu
 
 ### Pipeline Flow
 
-1. **Ingress & Memory Boundary:** Gin processes the incoming HTTP request through `middleware.MaxBodySize(10MB)`, wrapping `r.Body` with `http.MaxBytesReader` to block abusive payload sizes before JSON unmarshaling.
+1. **Ingress & Memory Boundary:** Gin processes the incoming HTTP request through `middleware.MaxBodySize(10MB)`, wrapping `r.Body` with `http.MaxBytesReader` to block oversized payload sizes before JSON unmarshaling.
 2. **Contract Validation:** `c.ShouldBindJSON` enforces presence, length limits, and supported presets (`oneof=default modern invoice`) via Go struct tags.
 3. **Stream Iteration & Rendering:** The Document Service resolves theme palettes and ranges over lines using `strings.SplitSeq(markdown, "\n")`, formatting headers, bullet lists, and paragraphs directly onto an in-memory `gofpdf` canvas.
 4. **Binary PDF Streaming:** The completed document is written to a `bytes.Buffer` and streamed straight back to the client (`Content-Type: application/pdf`) without touching the filesystem.
+
+---
+
+## 📊 Benchmarks
+
+Microbenchmarks run directly against the rendering pipeline (`internal/service`) using Go's built-in benchmark harness (`go test -bench=. -benchmem`):
+
+```text
+goos: linux
+goarch: amd64
+pkg: github.com/yashG0/papercut/internal/service
+cpu: AMD Ryzen 5 5600GT with Radeon Graphics
+BenchmarkGeneratePDF_Small-12        7723        171498 ns/op      866748 B/op          430 allocs/op
+BenchmarkGeneratePDF_Large-12         489       2277970 ns/op    11142393 B/op         9774 allocs/op
+PASS
+ok      github.com/yashG0/papercut/internal/service    2.442s
+```
+
+### Profile Breakdown
+
+| Benchmark   | Document Size                 | Latency (`ns/op`) | Approx. Time | Memory Allocations | Heap Allocs       |
+| :---------- | :---------------------------- | :---------------- | :----------- | :----------------- | :---------------- |
+| **`Small`** | Standard 1-page document      | `171,498 ns`      | **~0.17 ms** | `846 KB`           | `430 allocs/op`   |
+| **`Large`** | 50 repeated multi-line blocks | `2,277,970 ns`    | **~2.28 ms** | `10.6 MB`          | `9,774 allocs/op` |
+
+To reproduce these benchmarks locally:
+
+```bash
+go test -bench=. -benchmem ./internal/service/
+```
 
 ---
 
@@ -42,28 +72,30 @@ Organized according to standard Go project conventions:
 papercut/
 ├── asserts/
 │   └── architecture/
-│       └── arch.png             # Architecture diagram
+│       └── arch.png            # Architecture diagram
 ├── bin/
-│   └── papercut                 # Compiled binary
+│   └── papercut                # Compiled local binary
 ├── cmd/
 │   └── server/
-│       └── main.go              # Application entry point & dependency injection
+│       └── main.go             # Application entry point & dependency injection
 ├── internal/
 │   ├── handler/
-│   │   ├── render.go            # Gin HTTP controller for PDF streaming
-│   │   └── render_test.go       # httptest-based unit and integration tests
+│   │   ├── render.go           # Gin HTTP controller for PDF streaming
+│   │   └── render_test.go      # httptest-based unit & integration tests
 │   ├── middleware/
-│   │   ├── limits.go            # Memory protection middleware (MaxBytesReader)
-│   │   └── limits_test.go       # Payload ceiling boundary tests
+│   │   ├── limits.go           # Memory protection middleware (MaxBytesReader)
+│   │   └── limits_test.go      # Payload ceiling boundary tests
 │   ├── model/
-│   │   └── document.go          # Request/response contracts & Gin binding tags
+│   │   └── document.go         # Request/response contracts & Gin binding tags
 │   └── service/
-│       ├── renderer.go          # Core Markdown-to-PDF rendering engine
-│       └── theme.go             # Typography, margins, and color definitions
-├── Dockerfile                   # Multi-stage minimal runtime build
-├── makefile                     # Build, run, test, and tidy automations
+│       ├── renderer.go         # Core Markdown-to-PDF rendering engine
+│       ├── renderer_bench_test.go # Execution latency & allocation benchmarks
+│       └── theme.go            # Typography, margins, and color definitions
+├── Dockerfile                  # Multi-stage minimal runtime build
+├── makefile                    # Build, run, test, and tidy automations
 ├── go.mod
-└── go.sum
+├── go.sum
+└── README.md
 ```
 
 ---
@@ -88,17 +120,15 @@ papercut/
 2. **Run tests:**
 
    ```bash
-   make test
-   # Alternative: go test -v -race ./...
+   go test -v -race ./...
    ```
 
 3. **Start the service:**
    ```bash
-   make run
-   # Alternative: go run ./cmd/server/main.go
+   go run ./cmd/server/main.go
    ```
 
-The service will boot on `http://localhost:8080`.
+The service boots on `http://localhost:8080`.
 
 ---
 
@@ -184,24 +214,10 @@ Content-Disposition: attachment; filename="Quarterly_Invoice_101.pdf"
 
 ## 🧪 Testing
 
-Unit and integration tests run entirely in memory using `net/http/httptest`, verifying HTTP binding, edge-case rejection, and stream boundaries without binding real sockets:
+Unit and integration tests run in memory using `net/http/httptest`, verifying HTTP binding, edge-case rejection, and stream boundaries without binding real sockets:
 
 ```bash
 go test -v -race ./...
-```
-
-```text
-=== RUN   TestRenderPDF_Success
---- PASS: TestRenderPDF_Success (0.00s)
-=== RUN   TestRenderPDF_ValidationFailure_EmptyMarkdown
---- PASS: TestRenderPDF_ValidationFailure_EmptyMarkdown (0.00s)
-=== RUN   TestRenderPDF_ValidationFailure_InvalidTheme
---- PASS: TestRenderPDF_ValidationFailure_InvalidTheme (0.00s)
-=== RUN   TestMaxBodySize_RejectsOversizedPayload
---- PASS: TestMaxBodySize_RejectsOversizedPayload (0.00s)
-PASS
-ok      github.com/yashG0/papercut/internal/handler     0.012s
-ok      github.com/yashG0/papercut/internal/middleware  0.004s
 ```
 
 ---
