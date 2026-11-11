@@ -54,20 +54,29 @@ func (s *DocumentService) GeneratePDF(req model.RenderPDFRequest) ([]byte, error
 			continue
 		}
 
-		// Heading 1: # Title
-		if strings.HasPrefix(line, "# ") {
-			pdf.SetFont(theme.FontFamily, "B", 15)
-			pdf.SetTextColor(theme.HeaderColor.R, theme.HeaderColor.G, theme.HeaderColor.B)
-			pdf.CellFormat(0, 10, strings.TrimPrefix(line, "# "), "", 1, "L", false, 0, "")
-			pdf.Ln(2)
+		// Heading 3: ### Sub-section (must be evaluated before # and ##)
+		if strings.HasPrefix(line, "### ") {
+			pdf.SetFont(theme.FontFamily, "B", 11)
+			pdf.SetTextColor(theme.AccentColor.R, theme.AccentColor.G, theme.AccentColor.B)
+			pdf.CellFormat(0, 7, strings.TrimPrefix(line, "### "), "", 1, "L", false, 0, "")
+			pdf.Ln(1.5)
 			continue
 		}
 
 		// Heading 2: ## Subtitle
 		if strings.HasPrefix(line, "## ") {
-			pdf.SetFont(theme.FontFamily, "B", 12)
+			pdf.SetFont(theme.FontFamily, "B", 13)
 			pdf.SetTextColor(theme.AccentColor.R, theme.AccentColor.G, theme.AccentColor.B)
 			pdf.CellFormat(0, 8, strings.TrimPrefix(line, "## "), "", 1, "L", false, 0, "")
+			pdf.Ln(2)
+			continue
+		}
+
+		// Heading 1: # Title
+		if strings.HasPrefix(line, "# ") {
+			pdf.SetFont(theme.FontFamily, "B", 16)
+			pdf.SetTextColor(theme.HeaderColor.R, theme.HeaderColor.G, theme.HeaderColor.B)
+			pdf.CellFormat(0, 10, strings.TrimPrefix(line, "# "), "", 1, "L", false, 0, "")
 			pdf.Ln(2)
 			continue
 		}
