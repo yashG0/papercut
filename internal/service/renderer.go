@@ -24,22 +24,27 @@ func (s *DocumentService) GeneratePDF(req model.RenderPDFRequest) ([]byte, error
 		pageSize = "A4"
 	}
 
-	// 2. Initialize PDF canvas in memory
+	// 2. Select theme
+	theme := GetTheme(req.Theme)
+
+	// 3. Initialize PDF canvas in memory
 	pdf := gofpdf.New("P", "mm", pageSize, "")
-	pdf.SetMargins(20, 20, 20)
+	pdf.SetMargins(theme.MarginLeft, theme.MarginTop, theme.MarginRight)
 	pdf.AddPage()
 
-	// 3. Render Header / Title
-	pdf.SetFont("Helvetica", "B", 20)
+	// 4. Render Header / Title
+	pdf.SetFont(theme.FontFamily, "B", 20)
+	pdf.SetTextColor(theme.HeaderColor.R, theme.HeaderColor.G, theme.HeaderColor.B)
 	pdf.CellFormat(0, 15, req.Title, "", 1, "L", false, 0, "")
-	pdf.Ln(4)
+	pdf.Ln(2)
 
-	// Draw a light divider rule below the title
-	pdf.SetDrawColor(200, 200, 200)
-	pdf.Line(20, pdf.GetY(), 190, pdf.GetY())
+	// Draw divider rule using theme rule color
+	pdf.SetDrawColor(theme.RuleColor.R, theme.RuleColor.G, theme.RuleColor.B)
+	pdf.SetLineWidth(0.5)
+	pdf.Line(theme.MarginLeft, pdf.GetY(), 190, pdf.GetY())
 	pdf.Ln(6)
 
-	// 4. Parse & Render Markdown Lines
+	// 5. Parse & Render Markdown Lines using iterators
 	for rawLine := range strings.SplitSeq(req.Markdown, "\n") {
 		line := strings.TrimRight(rawLine, "\r")
 
@@ -51,8 +56,8 @@ func (s *DocumentService) GeneratePDF(req model.RenderPDFRequest) ([]byte, error
 
 		// Heading 1: # Title
 		if strings.HasPrefix(line, "# ") {
-			pdf.SetFont("Helvetica", "B", 16)
-			pdf.SetTextColor(30, 30, 30)
+			pdf.SetFont(theme.FontFamily, "B", 15)
+			pdf.SetTextColor(theme.HeaderColor.R, theme.HeaderColor.G, theme.HeaderColor.B)
 			pdf.CellFormat(0, 10, strings.TrimPrefix(line, "# "), "", 1, "L", false, 0, "")
 			pdf.Ln(2)
 			continue
@@ -60,8 +65,8 @@ func (s *DocumentService) GeneratePDF(req model.RenderPDFRequest) ([]byte, error
 
 		// Heading 2: ## Subtitle
 		if strings.HasPrefix(line, "## ") {
-			pdf.SetFont("Helvetica", "B", 13)
-			pdf.SetTextColor(60, 60, 60)
+			pdf.SetFont(theme.FontFamily, "B", 12)
+			pdf.SetTextColor(theme.AccentColor.R, theme.AccentColor.G, theme.AccentColor.B)
 			pdf.CellFormat(0, 8, strings.TrimPrefix(line, "## "), "", 1, "L", false, 0, "")
 			pdf.Ln(2)
 			continue
@@ -70,20 +75,21 @@ func (s *DocumentService) GeneratePDF(req model.RenderPDFRequest) ([]byte, error
 		// Bullet point: - or *
 		if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
 			cleanText := strings.TrimPrefix(strings.TrimPrefix(line, "- "), "* ")
-			pdf.SetFont("Helvetica", "", 11)
-			pdf.SetTextColor(50, 50, 50)
-			pdf.CellFormat(6, 6, chr(149), "", 0, "R", false, 0, "") // 149 is bullet point symbol
+			pdf.SetFont(theme.FontFamily, "", 10)
+			pdf.SetTextColor(theme.AccentColor.R, theme.AccentColor.G, theme.AccentColor.B)
+			pdf.CellFormat(6, 6, chr(149), "", 0, "R", false, 0, "") // Bullet point symbol
+			pdf.SetTextColor(theme.BodyColor.R, theme.BodyColor.G, theme.BodyColor.B)
 			pdf.CellFormat(0, 6, " "+cleanText, "", 1, "L", false, 0, "")
 			continue
 		}
 
 		// Regular body paragraph
-		pdf.SetFont("Helvetica", "", 10)
-		pdf.SetTextColor(50, 50, 50)
+		pdf.SetFont(theme.FontFamily, "", 10)
+		pdf.SetTextColor(theme.BodyColor.R, theme.BodyColor.G, theme.BodyColor.B)
 		pdf.MultiCell(0, 6, line, "", "L", false)
 	}
 
-	// 5. Output PDF bytes directly to an in-memory buffer
+	// 6. Output PDF bytes directly to an in-memory buffer
 	var buf bytes.Buffer
 	err := pdf.Output(&buf)
 	if err != nil {
