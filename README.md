@@ -22,7 +22,7 @@ An ultra-fast, headless document-rendering microservice written in Go. **PaperCu
 ## 🏛️ System Architecture
 
 <p align="center">
-  <img src="architecture.svg" alt="PaperCut Architecture Diagram" width="100%" />
+  <img src="asserts/architecture/arch.png" alt="PaperCut Architecture Diagram" width="100%" />
 </p>
 
 ### Pipeline Flow
@@ -40,6 +40,11 @@ Organized according to standard Go project conventions:
 
 ```text
 papercut/
+├── asserts/
+│   └── architecture/
+│       └── arch.png             # Architecture diagram
+├── bin/
+│   └── papercut                 # Compiled binary
 ├── cmd/
 │   └── server/
 │       └── main.go              # Application entry point & dependency injection
@@ -55,10 +60,8 @@ papercut/
 │   └── service/
 │       ├── renderer.go          # Core Markdown-to-PDF rendering engine
 │       └── theme.go             # Typography, margins, and color definitions
-├── architecture.svg             # Clean whiteboard architecture diagram
 ├── Dockerfile                   # Multi-stage minimal runtime build
-├── .dockerignore                # Build context exclusion rules
-├── Makefile                     # Build, run, test, and tidy automations
+├── makefile                     # Build, run, test, and tidy automations
 ├── go.mod
 └── go.sum
 ```
