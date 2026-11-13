@@ -4,18 +4,19 @@
 [![Framework](https://img.shields.io/badge/Framework-Gin-008ECF?style=flat&logo=gin)](https://gin-gonic.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-An ultra-fast, headless document-rendering microservice written in Go. **PaperCut** converts raw Markdown documents into production-ready PDFs and streams them back in real time with **zero disk writes** and predictable in-memory execution.
+A headless document-rendering microservice written in Go. **PaperCut** converts a subset of Markdown into PDFs and streams them back in the HTTP response, rendered entirely in memory with **no disk writes**.
 
 ---
 
 ## ⚡ Key Highlights
 
-- **Zero-Disk I/O Pipeline:** All canvas construction, formatting, and PDF encoding occur directly inside Go memory buffers (`bytes.Buffer`). No temporary file cleanups, lock contentions, or disk thrashing under heavy traffic.
-- **Reproducible Performance:** ~0.17 ms per document layout and PDF compilation on standard payloads, benchmarked with Go's native testing framework.
-- **Go 1.24 Iterator Engine:** Uses `strings.SplitSeq` stream-based line iteration to eliminate full-slice heap allocations when parsing markdown blocks.
-- **Memory Safety Middleware:** Native `http.MaxBytesReader` guard limits incoming payload streams to 10MB to prevent memory exhaustion and denial-of-service attempts.
+- **No-Disk Pipeline:** Canvas construction, formatting, and PDF encoding all happen in Go memory buffers (`bytes.Buffer`). There are no temporary files to create or clean up.
+- **Measured Performance:** About 0.17 ms to lay out and encode a small document, measured with Go's native benchmark harness (hardware and caveats are listed under [Benchmarks](#-benchmarks)).
+- **Allocation-Aware Line Parsing:** Uses `strings.SplitSeq` (Go 1.24) to iterate over lines without first allocating a slice of all lines.
+- **Request Size Limit:** `http.MaxBytesReader` rejects request bodies over 10 MB before JSON decoding.
 - **Dynamic Theming:** Built-in palette and typography engine supporting `default`, `modern`, and `invoice` layouts with custom accents, margins, and divider rules.
-- **Lean Container Footprint:** Packaged via a multi-stage Docker/Podman build into a non-root Alpine runtime under 35MB.
+- **Small Container Image:** Multi-stage Docker/Podman build into a non-root Alpine runtime, under 35 MB.
+- **Tested:** `httptest`-based handler and middleware tests, run with the race detector.
 
 ---
 
@@ -27,16 +28,29 @@ An ultra-fast, headless document-rendering microservice written in Go. **PaperCu
 
 ### Pipeline Flow
 
-1. **Ingress & Memory Boundary:** Gin processes the incoming HTTP request through `middleware.MaxBodySize(10MB)`, wrapping `r.Body` with `http.MaxBytesReader` to block oversized payload sizes before JSON unmarshaling.
-2. **Contract Validation:** `c.ShouldBindJSON` enforces presence, length limits, and supported presets (`oneof=default modern invoice`) via Go struct tags.
-3. **Stream Iteration & Rendering:** The Document Service resolves theme palettes and ranges over lines using `strings.SplitSeq(markdown, "\n")`, formatting headers, bullet lists, and paragraphs directly onto an in-memory `gofpdf` canvas.
-4. **Binary PDF Streaming:** The completed document is written to a `bytes.Buffer` and streamed straight back to the client (`Content-Type: application/pdf`) without touching the filesystem.
+1. **Ingress & Size Limit:** Gin passes the request through `middleware.MaxBodySize(10MB)`, which wraps `r.Body` with `http.MaxBytesReader` to reject oversized bodies before JSON decoding.
+2. **Contract Validation:** `c.ShouldBindJSON` enforces presence, length limits, and supported presets (`oneof=default modern invoice`) through Go struct tags.
+3. **Line Iteration & Rendering:** The document service resolves theme palettes and ranges over lines with `strings.SplitSeq(markdown, "\n")`, formatting headers, bullet lists, and paragraphs onto an in-memory `gofpdf` canvas.
+4. **Binary PDF Streaming:** The finished document is written to a `bytes.Buffer` and streamed back to the client (`Content-Type: application/pdf`) without touching the filesystem.
+
+---
+
+## 📝 Supported Markdown
+
+PaperCut renders a deliberately small subset of Markdown:
+
+| Element | Supported |
+| :------ | :-------- |
+| Headers | Yes |
+| Bullet lists | Yes |
+| Paragraphs | Yes |
+| Tables, code blocks, links, numbered lists, images, inline bold/italic | No |
 
 ---
 
 ## 📊 Benchmarks
 
-Microbenchmarks run directly against the rendering pipeline (`internal/service`) using Go's built-in benchmark harness (`go test -bench=. -benchmem`):
+Microbenchmarks run against the rendering pipeline (`internal/service`) using Go's built-in benchmark harness (`go test -bench=. -benchmem`):
 
 ```text
 goos: linux
@@ -51,12 +65,14 @@ ok      github.com/yashG0/papercut/internal/service    2.442s
 
 ### Profile Breakdown
 
-| Benchmark   | Document Size                 | Latency (`ns/op`) | Approx. Time | Memory Allocations | Heap Allocs       |
-| :---------- | :---------------------------- | :---------------- | :----------- | :----------------- | :---------------- |
-| **`Small`** | Standard 1-page document      | `171,498 ns`      | **~0.17 ms** | `846 KB`           | `430 allocs/op`   |
-| **`Large`** | 50 repeated multi-line blocks | `2,277,970 ns`    | **~2.28 ms** | `10.6 MB`          | `9,774 allocs/op` |
+| Benchmark   | Input                                              | Latency (`ns/op`) | Approx. Time | Allocated per op | Allocs per op   |
+| :---------- | :------------------------------------------------- | :---------------- | :----------- | :--------------- | :-------------- |
+| **`Small`** | Standard 1-page document (~`<SMALL_KB>` KB)        | `171,498 ns`      | **~0.17 ms** | `846 KB`         | `430 allocs/op` |
+| **`Large`** | 50 repeated multi-line blocks (~`<LARGE_KB>` KB)   | `2,277,970 ns`    | **~2.28 ms** | `10.6 MB`        | `9,774 allocs/op` |
 
-To reproduce these benchmarks locally:
+**Caveats:** these benchmarks cover the rendering pipeline only, not the HTTP layer or JSON decoding, and were run on a single machine.
+
+To reproduce locally:
 
 ```bash
 go test -bench=. -benchmem ./internal/service/
@@ -70,11 +86,9 @@ Organized according to standard Go project conventions:
 
 ```text
 papercut/
-├── asserts/
+├── assets/
 │   └── architecture/
 │       └── arch.png            # Architecture diagram
-├── bin/
-│   └── papercut                # Compiled local binary
 ├── cmd/
 │   └── server/
 │       └── main.go             # Application entry point & dependency injection
@@ -83,7 +97,7 @@ papercut/
 │   │   ├── render.go           # Gin HTTP controller for PDF streaming
 │   │   └── render_test.go      # httptest-based unit & integration tests
 │   ├── middleware/
-│   │   ├── limits.go           # Memory protection middleware (MaxBytesReader)
+│   │   ├── limits.go           # Request size limit (MaxBytesReader)
 │   │   └── limits_test.go      # Payload ceiling boundary tests
 │   ├── model/
 │   │   └── document.go         # Request/response contracts & Gin binding tags
@@ -93,6 +107,7 @@ papercut/
 │       └── theme.go            # Typography, margins, and color definitions
 ├── Dockerfile                  # Multi-stage minimal runtime build
 ├── makefile                    # Build, run, test, and tidy automations
+├── LICENSE
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -124,23 +139,24 @@ papercut/
    ```
 
 3. **Start the service:**
+
    ```bash
    go run ./cmd/server/main.go
    ```
 
-The service boots on `http://localhost:8080`.
+The service starts on `http://localhost:8080`.
 
 ---
 
 ## 🐳 Container Deployment (Docker / Podman)
 
-Build and run the lightweight container:
+Build and run the container:
 
 ```bash
-# Build image using Podman or Docker
+# Build the image with Podman or Docker
 podman build -t papercut:latest .
 
-# Run container on port 8080
+# Run the container on port 8080
 podman run -d -p 8080:8080 --name papercut-service localhost/papercut:latest
 
 # Verify health
@@ -153,7 +169,7 @@ curl http://localhost:8080/healthz
 
 ### 1. Health Probe
 
-Checks service liveness and readiness.
+Checks service liveness.
 
 ```http
 GET /healthz
@@ -172,7 +188,7 @@ GET /healthz
 
 ### 2. Render Markdown to PDF
 
-Compiles markdown content and returns an attachment PDF stream.
+Compiles Markdown content and returns the PDF as an attachment.
 
 ```http
 POST /api/v1/render/pdf
@@ -214,11 +230,32 @@ Content-Disposition: attachment; filename="Quarterly_Invoice_101.pdf"
 
 ## 🧪 Testing
 
-Unit and integration tests run in memory using `net/http/httptest`, verifying HTTP binding, edge-case rejection, and stream boundaries without binding real sockets:
+Handler and middleware tests run in memory with `net/http/httptest`, covering request binding, rejection of invalid input, and the request size limit, without opening real sockets:
 
 ```bash
 go test -v -race ./...
+
+# with coverage
+go test -cover ./...
 ```
+
+---
+
+## ⚠️ Known Limitations
+
+- **No concurrency limit.** Each render buffers the whole PDF in memory, so memory use grows with the number of parallel requests. The 10 MB cap limits the size of a single request, not total memory.
+- **No authentication or rate limiting.**
+- **Markdown subset only:** headers, bullet lists, and paragraphs (see [Supported Markdown](#-supported-markdown)).
+- **Benchmarks cover the rendering pipeline only,** not the HTTP layer, and were run on one machine.
+
+---
+
+## 🔮 Next Steps
+
+- Limit concurrent renders with a semaphore middleware
+- Benchmark allocation across input sizes (1 KB to 10 MB)
+- CI with GitHub Actions (`go test -race ./...`)
+- Sanitize the `title` field before using it in `Content-Disposition`
 
 ---
 
